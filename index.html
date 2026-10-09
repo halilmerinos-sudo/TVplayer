@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CANLI TV TR - Windows Desktop Edition</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- HLS.js for M3U8 streaming -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen flex flex-col overflow-hidden select-none">
+
+    <!-- Windows Title Bar -->
+    <div class="bg-slate-900 border-b border-slate-800 h-10 flex items-center justify-between px-4 shrink-0 drag-region">
+        <div class="flex items-center space-x-2">
+            <div class="w-3 h-3 rounded-full bg-red-500 cursor-pointer" title="Kapat"></div>
+            <div class="w-3 h-3 rounded-full bg-yellow-500 cursor-pointer" title="Küçült"></div>
+            <div class="w-3 h-3 rounded-full bg-green-500 cursor-pointer" title="Büyüt"></div>
+            <span class="text-xs font-semibold text-slate-400 ml-2 tracking-wider flex items-center gap-1">
+                <i class="fa-solid fa-tv text-cyan-400"></i> CANLI TV TR <span class="text-[10px] bg-slate-800 text-cyan-300 px-1.5 py-0.5 rounded ml-1">v1.0.0</span>
+            </span>
+        </div>
+        <div class="flex items-center space-x-3 text-slate-400 text-sm">
+            <button onclick="toggleModal('privacyModal')" class="hover:text-white transition flex items-center gap-1 text-xs bg-slate-800 px-2.5 py-1 rounded">
+                <i class="fa-solid fa-shield-halved text-emerald-400"></i> Gizlilik & Politika
+            </button>
+            <span class="text-xs text-slate-500">Mücahit Karakaya</span>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Sidebar / Channel List Panel -->
+        <div class="w-80 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0">
+            <!-- Search & Filter -->
+            <div class="p-3 border-b border-slate-800 space-y-2">
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
+                    <input type="text" id="searchInput" oninput="filterChannels()" placeholder="Kanal ara (örn: TRT, ATV, Spor)..." 
+                        class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 transition">
+                </div>
+                <!-- Categories -->
+                <div class="flex gap-1 overflow-x-auto pb-1 text-xs">
+                    <button onclick="setCategory('all')" id="cat-all" class="cat-btn bg-cyan-600 text-white px-2.5 py-1 rounded-md shrink-0 transition font-medium">Tümü</button>
+                    <button onclick="setCategory('Ulusal')" id="cat-Ulusal" class="cat-btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-2.5 py-1 rounded-md shrink-0 transition">Ulusal</button>
+                    <button onclick="setCategory('Haber')" id="cat-Haber" class="cat-btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-2.5 py-1 rounded-md shrink-0 transition">Haber</button>
+                    <button onclick="setCategory('Spor')" id="cat-Spor" class="cat-btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-2.5 py-1 rounded-md shrink-0 transition">Spor</button>
+                    <button onclick="setCategory('Belgesel')" id="cat-Belgesel" class="cat-btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-2.5 py-1 rounded-md shrink-0 transition">Belgesel</button>
+                    <button onclick="setCategory('Müzik')" id="cat-Müzik" class="cat-btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-2.5 py-1 rounded-md shrink-0 transition">Müzik</button>
+                </div>
+            </div>
+
+            <!-- Channel List -->
+            <div id="channelList" class="flex-1 overflow-y-auto divide-y divide-slate-800/50">
+                <!-- Javascript ile doldurulacak -->
+            </div>
+        </div>
+
+        <!-- Video Player & Content Area -->
+        <div class="flex-1 flex flex-col bg-slate-950 relative">
+            
+            <!-- Video Container -->
+            <div class="flex-1 bg-black relative flex items-center justify-center overflow-hidden">
+                <video id="videoPlayer" class="w-full h-full object-contain" controls autoplay></video>
+                
+                <!-- Loading Overlay -->
+                <div id="loadingOverlay" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center space-y-3 z-10 hidden">
+                    <div class="w-10 h-10 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p id="loadingText" class="text-xs text-slate-300 tracking-wide">Yayın yükleniyor...</p>
+                </div>
+
+                <!-- Fallback / Error Alert Box -->
+                <div id="errorAlert" class="absolute bottom-6 left-6 right-6 bg-red-950/90 border border-red-800/80 p-4 rounded-xl backdrop-blur-md hidden z-20 shadow-2xl flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <i class="fa-solid fa-triangle-exclamation text-red-400 text-xl"></i>
+                        <div>
+                            <h4 class="text-xs font-bold text-red-200">Akış Kaynağı Hatası / 3. Taraf Kesintisi</h4>
+                            <p class="text-[11px] text-red-300 mt-0.5">Seçilen harici yayın sağlayıcısı şu an yanıt vermiyor veya CORS engeline takıldı. Başka bir kanal deneyebilirsiniz.</p>
+                        </div>
+                    </div>
+                    <button onclick="closeErrorAlert()" class="text-red-300 hover:text-white px-2 py-1 text-xs bg-red-900 rounded">Kapat</button>
+                </div>
+            </div>
+
+            <!-- Current Channel Info Footer -->
+            <div class="h-16 bg-slate-900 border-t border-slate-800 px-6 flex items-center justify-between shrink-0">
+                <div class="flex items-center space-x-3">
+                    <img id="currentLogo" src="" alt="" class="w-9 h-9 object-contain bg-white/5 p-1 rounded-lg border border-slate-800">
+                    <div>
+                        <h2 id="currentName" class="text-sm font-bold text-white">Bir kanal seçin</h2>
+                        <p id="currentCategory" class="text-xs text-slate-400">CANLI TV TR - Canlı Yayın Akışı</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3 text-xs text-slate-400">
+                    <span class="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> HLS / M3U8 Doğrudan Bağlantı
+                    </span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Privacy & About Modal -->
+    <div id="privacyModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-shield-halved text-cyan-400"></i> Gizlilik Politikası & Uygulama Bilgileri
+                </h3>
+                <button onclick="toggleModal('privacyModal')" class="text-slate-400 hover:text-white text-sm"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-xs text-slate-300 leading-relaxed">
+                <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                    <h4 class="font-bold text-white mb-1">CANLI TV TR Hakkında</h4>
+                    <p class="text-slate-400">Mücahit Karakaya tarafından geliştirilmiş Windows canlı TV izleme uygulamasıdır. Kişisel veri toplamaz.</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-white text-cyan-400 mb-1">3. Uygulama İçi Veri ve Ağ Kullanımı</h4>
+                    <p>Uygulama paketine dahil edilen <code class="text-cyan-300">channels.json</code> ve <code class="text-cyan-300">stream_map.json</code> dosyalarından kanalları okur. Açılışta <code class="text-cyan-300">https://karakaya1745.github.io</code> üzerindeki güncellemeleri kontrol edebilir. İstekler hesap veya cihaz kimliği içermez.</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-white text-cyan-400 mb-1">4. Üçüncü Taraf Yayın Sağlayıcıları</h4>
+                    <p>Canlı yayınlar üçüncü taraf sunuculardan sağlanır. IP adresiniz veya izleme alışkanlıklarınız bu dış sunucular tarafından işlenebilir; geliştirici sorumlu tutulamaz.</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-white text-cyan-400 mb-1">5. Gelecekteki Özellikler & Çocuklar</h4>
+                    <p>Şu anki sürümde reklam veya IAP bulunmamaktadır. Gelecekte Microsoft Store üzerinden reklamsız premium eklenebilir. 13 yaş altı çocuklardan bilerek kişisel veri toplanmaz.</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-white text-cyan-400 mb-1">8. İletişim</h4>
+                    <p>Sorularınız için: <span class="text-cyan-400 font-mono">DESTEK_EPOSTA</span></p>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-800 bg-slate-950/50 flex justify-end">
+                <button onclick="toggleModal('privacyModal')" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg text-xs font-semibold transition">Anladım</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- App Logic -->
+    <script>
+        // Genişletilmiş 35+ Kanal Veritabanı (Stream Map & Channels Entegre)
+        const channels = [
+            { id: 1, name: "TRT 1", category: "Ulusal", site: "trt1.trt.tr", url: "https://tv-trt1.live.trt.com.tr/master.m3u8" },
+            { id: 2, name: "ATV", category: "Ulusal", site: "atv.com.tr", url: "https://trkvz-live.daioncdn.net/atv/atv.m3u8" },
+            { id: 3, name: "Show TV", category: "Ulusal", site: "showtv.com.tr", url: "https://ciner-live.daioncdn.net/showtv/showtv.m3u8" },
+            { id: 4, name: "Star TV", category: "Ulusal", site: "startv.com.tr", url: "https://dogus-live.daioncdn.net/startv/startv.m3u8" },
+            { id: 5, name: "Kanal D", category: "Ulusal", site: "kanald.com.tr", url: "https://demiroren-live.daioncdn.net/kanald/kanald.m3u8" },
+            { id: 6, name: "TV8", category: "Ulusal", site: "tv8.com.tr", url: "https://tv8-live.daioncdn.net/tv8/tv8.m3u8" },
+            { id: 7, name: "NOW TV", category: "Ulusal", site: "nowtv.com.tr", url: "https://fox-live.daioncdn.net/foxtv/foxtv.m3u8" },
+            { id: 8, name: "Kanal 7", category: "Ulusal", site: "kanal7.com", url: "https://kanal7-live.daioncdn.net/kanal7/kanal7.m3u8" },
+            { id: 9, name: "Beyaz TV", category: "Ulusal", site: "beyaztv.com.tr", url: "https://beyaztv-live.daioncdn.net/beyaztv/beyaztv.m3u8" },
+            { id: 10, name: "TV8.5", category: "Spor", site: "tv8bucuk.com", url: "https://tv8-live.daioncdn.net/tv8bucuk/tv8bucuk.m3u8" },
+            
+            { id: 11, name: "TRT Haber", category: "Haber", site: "trthaber.com", url: "https://tv-trthaber.live.trt.com.tr/master.m3u8" },
+            { id: 12, name: "Habertürk TV", category: "Haber", site: "haberturk.com", url: "https://ciner-live.daioncdn.net/haberturktv/haberturktv.m3u8" },
+            { id: 13, name: "NTV", category: "Haber", site: "ntv.com.tr", url: "https://dogus-live.daioncdn.net/ntv/ntv.m3u8" },
+            { id: 14, name: "CNN Türk", category: "Haber", site: "cnnturk.com", url: "https://demiroren-live.daioncdn.net/cnnturk/cnnturk.m3u8" },
+            { id: 15, name: "A Haber", category: "Haber", site: "ahaber.com.tr", url: "https://trkvz-live.daioncdn.net/ahaber/ahaber.m3u8" },
+            { id: 16, name: "Bloomberg HT", category: "Haber", site: "bloomberght.com", url: "https://ciner-live.daioncdn.net/bloomberght/bloomberght.m3u8" },
+            { id: 17, name: "Halk TV", category: "Haber", site: "halktv.com.tr", url: "https://halktv-live.daioncdn.net/halktv/halktv.m3u8" },
+            { id: 18, name: "Tele1", category: "Haber", site: "tele1.com.tr", url: "https://tele1.daioncdn.net/tele1/tele1.m3u8" },
+            { id: 19, name: "KRT TV", category: "Haber", site: "krttv.com.tr", url: "https://krt-live.daioncdn.net/krttv/krttv.m3u8" },
+            { id: 20, name: "TGRT Haber", category: "Haber", site: "tgrthaber.com.tr", url: "https://tgrt-live.daioncdn.net/tgrthaber/tgrthaber.m3u8" },
+
+            { id: 21, name: "TRT Spor", category: "Spor", site: "trtspor.com.tr", url: "https://tv-trtspor1.live.trt.com.tr/master.m3u8" },
+            { id: 22, name: "A Spor", category: "Spor", site: "aspor.com.tr", url: "https://trkvz-live.daioncdn.net/aspor/aspor.m3u8" },
+            { id: 23, name: "TRT Spor Yıldız", category: "Spor", site: "trt.net.tr", url: "https://tv-trtspor2.live.trt.com.tr/master.m3u8" },
+
+            { id: 24, name: "TRT Belgesel", category: "Belgesel", site: "trtbelgesel.com.tr", url: "https://tv-trtbelgesel.live.trt.com.tr/master.m3u8" },
+            { id: 25, name: "DMAX", category: "Belgesel", site: "dmax.com.tr", url: "https://dogus-live.daioncdn.net/dmax/dmax.m3u8" },
+            { id: 26, name: "TLC", category: "Belgesel", site: "tlc.com.tr", url: "https://dogus-live.daioncdn.net/tlc/tlc.m3u8" },
+            { id: 27, name: "TRT Çocuk", category: "Belgesel", site: "trtcocuk.net.tr", url: "https://tv-trtcocuk.live.trt.com.tr/master.m3u8" },
+
+            { id: 28, name: "TRT Müzik", category: "Müzik", site: "trt.net.tr", url: "https://tv-trtmuzik.live.trt.com.tr/master.m3u8" },
+            { id: 29, name: "Kral Pop", category: "Müzik", site: "kralmuzik.com.tr", url: "https://dogus-live.daioncdn.net/kralpop/kralpop.m3u8" },
+            { id: 30, name: "Dream Türk", category: "Müzik", site: "dreamtruk.com.tr", url: "https://demiroren-live.daioncdn.net/dreamturk/dreamturk.m3u8" },
+            { id: 31, name: "Power Türk", category: "Müzik", site: "powerturk.com", url: "https://powerturk.daioncdn.net/powerturk/powerturk.m3u8" }
+        ];
+
+        let currentCategory = 'all';
+        let hlsInstance = null;
+
+        // Google Favicon API kullanarak logo üretimi (Gereksinim 3)
+        function getChannelLogo(siteDomain) {
+            return `https://www.google.com/s2/favicons?domain=${siteDomain}&sz=64`;
+        }
+
+        function renderChannels(list) {
+            const container = document.getElementById('channelList');
+            container.innerHTML = '';
+
+            if (list.length === 0) {
+                container.innerHTML = `<div class="p-6 text-center text-slate-500 text-xs">Kanal bulunamadı.</div>`;
+                return;
+            }
+
+            list.forEach(channel => {
+                const item = document.createElement('div');
+                item.className = "flex items-center justify-between p-3 hover:bg-slate-800/60 cursor-pointer transition group";
+                item.onclick = () => playChannel(channel);
+
+                const logoUrl = getChannelLogo(channel.site);
+
+                item.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center p-1 shrink-0">
+                            <img src="${logoUrl}" alt="${channel.name}" class="w-full h-full object-contain" onerror="this.src='https://via.placeholder.com/32?text=TV'">
+                        </div>
+                        <div>
+                            <h4 class="text-xs font-semibold text-slate-200 group-hover:text-white">${channel.name}</h4>
+                            <span class="text-[10px] text-slate-500">${channel.category}</span>
+                        </div>
+                    </div>
+                    <div class="text-slate-600 group-hover:text-cyan-400 text-xs">
+                        <i class="fa-solid fa-play"></i>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function setCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('.cat-btn').forEach(btn => {
+                btn.className = "cat-btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-2.5 py-1 rounded-md shrink-0 transition text-xs";
+            });
+            const activeBtn = document.getElementById(`cat-${cat}`);
+            if(activeBtn) activeBtn.className = "cat-btn bg-cyan-600 text-white px-2.5 py-1 rounded-md shrink-0 transition text-xs font-medium";
+            filterChannels();
+        }
+
+        function filterChannels() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = channels.filter(ch => {
+                const matchesCategory = currentCategory === 'all' || ch.category === currentCategory;
+                const matchesQuery = ch.name.toLowerCase().includes(query);
+                return matchesCategory && matchesQuery;
+            });
+            renderChannels(filtered);
+        }
+
+        function playChannel(channel) {
+            document.getElementById('currentName').innerText = channel.name;
+            document.getElementById('currentCategory').innerText = `${channel.category} • Canlı Yayın`;
+            document.getElementById('currentLogo').src = getChannelLogo(channel.site);
+            
+            const video = document.getElementById('videoPlayer');
+            const loading = document.getElementById('loadingOverlay');
+            const errorAlert = document.getElementById('errorAlert');
+            
+            errorAlert.classList.add('hidden');
+            loading.classList.remove('hidden');
+
+            if (Hls.isSupported()) {
+                if (hlsInstance) {
+                    hlsInstance.destroy();
+                }
+                hlsInstance = new Hls();
+                hlsInstance.loadSource(channel.url);
+                hlsInstance.attachMedia(video);
+                hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+                    loading.classList.add('hidden');
+                    video.play().catch(e => console.log("Oynatma hatası:", e));
+                });
+                hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) {
+                        loading.classList.add('hidden');
+                        errorAlert.classList.remove('hidden');
+                    }
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = channel.url;
+                video.addEventListener('loadedmetadata', () => {
+                    loading.classList.add('hidden');
+                    video.play();
+                });
+            }
+        }
+
+        function closeErrorAlert() {
+            document.getElementById('errorAlert').classList.add('hidden');
+        }
+
+        function toggleModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.toggle('hidden');
+        }
+
+        // Başlangıçta ilk kanalı otomatik yükle veya listele
+        window.onload = () => {
+            renderChannels(channels);
+            // TRT 1 ile otomatik başlat
+            playChannel(channels[0]);
+        };
+    </script>
+</body>
+</html>
